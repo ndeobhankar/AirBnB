@@ -1,0 +1,527 @@
+---
+title: "DSTI_class_project"
+output: html_document
+---
+
+# DSTI_AirBnB project to analyse the data#
+
+The main data which is available in Rdata format is loaded for analysis as follows.
+
+```{r}
+load("D:/R_Bootcamp/R_DSTI_Project/AirBnB.Rdata")
+```
+
+From Environment window, it is clear that there are total two tables in this data. 
+
+The basic packages needed for the analysis are installed as follows.
+
+```{r}
+#install.packages("dplyr")
+#install.packages("ggplot2")
+#install.packages("tidyverse")
+#install.packages("lubridate")
+#install.packages("PerformanceAnalytics")
+#install.packages("maps")
+library('dplyr')
+library('ggplot2')
+library("tidyverse")
+library("lubridate")
+library("PerformanceAnalytics")
+library("maps")
+```
+
+## Find out all variables. ##
+
+The names of the columns in the table L are as follows.
+
+```{r}
+colnames(L)
+```
+
+There are too many columns. So, it is essential to find out which columns are useful and which are not. Some of the columns that are not useful have either a lot of text that cannot be parameterised or many "NA" values. So, let's check the kind of values this table has.
+
+##Find out which columns are useful. ##
+
+```{r}
+summary(L)
+```
+From all the observations it is clear that there are a few unnecessary columns having a lot of text. They are not useful for quantitative analysis. So, let's first elimiate such columns. Following are the reasons for removing each of the columns.
+
+### No use in quantitative analysis: ###
+
+listing_url, name, summary,description, thumbnail_url, medium_url, xl_picture_url, host_name, host_about, state, license, scrape_id, picture_url, host_url, calendar_updated, amenities, smart_location, host_verifications, last_scraped, host_location, host_neighbourhood
+
+### Similar info offered in other columns: ###
+
+description, host_thumbnail_url, host_picture_url, neighbourhood, country, city, market
+
+### Too many NA/none values: ###
+
+experiences_offered, notes, neighborhood_overview, transit, access, interaction, house_rules, has_availability, square_feet
+
+
+```{r}
+Air <- L [, !(names(L) %in% c("listing_url", "scrape_id", "picture_url", "name", "summary", "space", "description", "experiences_offered", "neighborhood_overview", "notes", "transit", "access", "interaction", "house_rules", "thumbnail_url", "medium_url", "xl_picture_url", "host_name", "host_about", "host_thumbnail_url", "host_picture_url", "neighbourhood", "neighbourhood_group_cleansed", "street", "state", "city", "country", "has_availability", "license", "host_url", "square_feet", "calendar_updated", "amenities", "smart_location", "host_verifications", "last_scraped", "host_location", "host_neighbourhood", "market"))]
+#head(Air)
+
+```
+
+Now we have reduced the data to 56 variables or columns. Still, this data is very exhaustive. However, before going any further, it is essential to clean the data. 
+
+The dates in the original data must be changed in the "date" format for convenience.
+
+```{r}
+Date_col <- c("host_since", "calendar_last_scraped", "first_review", "last_review")
+Air[Date_col] <- lapply(Air[Date_col], as.Date)
+#head(Air)
+```
+
+
+From the summary, it is also clear that the currency is expressed in categorical format and not in numerical. Also, from observation, it is evident that the currency used in the dataframe is primarily US dollars. So, we can ignore the symbol attached with it and just convert it to numerical format as follows.
+
+
+```{r}
+Price_col <- c("price", "weekly_price", "monthly_price", "security_deposit", "cleaning_fee", "extra_people")
+Air[Price_col] <- sapply(Air[Price_col], as.character)
+Air[Price_col] <- sapply(Air[Price_col], gsub, pattern ="[$]", replacement ="")
+Air[Price_col] <- sapply(Air[Price_col], gsub, pattern =",", replacement ="")
+Air[Price_col] <- sapply(Air[Price_col], as.numeric)
+#head(Air)
+```
+
+Okay, since most of the desired data is relatively cleaned, let's try to analyse the data more closely. Before analyzing all variables together, let us divide them into smaller categories and analyse them first. Once they are analysed well, we can have much better understanding of their behavior and derive meaningful insights globally.
+
+So, from the observations, the categories can be as follows.
+
+1. Location
+2. Host
+3. Accommodation
+4. Prices
+5. Reviews
+
+So, let's deal with each category one by one. Let's begin with the Location data.
+
+## Analysis of Locations ##
+
+Let's see where are all properties located in the world.
+
+```{r}
+data(Air)
+map()
+points(Air$longitude, Air$latitude, pch=19, col="blue", cex=1.25)
+```
+It seems that all properties are in France. So, let's try to invetigate further.
+
+```{r}
+data(Air)
+map("france")
+points(Air$longitude, Air$latitude, pch=19, col="blue", cex=1.25)
+```
+
+### Properties on AirBnB - Area-wise ###
+
+It seems that the within France as well, all properties are within France and that too within Paris. In fact, this information is also clear from various locations mentioned within th given data.
+
+```{r}
+ggplot(data = Air) +
+   geom_bar(aes(x = ""))+
+   facet_wrap( ~ neighbourhood_cleansed)+
+  ggtitle("Number of properties areawise in Paris") +
+  xlab("Number of properties") + ylab("Area")
+```
+It is clear that maximum number of houses or properties are in Buttes-Montmartre whereas the least are in Louvre.
+
+## Analysis of Hosts ##
+
+### Number of host joined each year ###
+
+Lets find out the distribution of the of the number of hosts joined in a typical year.
+
+
+```{r}
+n_of_registrations = Air%>%
+  select(host_since)%>%
+  group_by(month(host_since), year(host_since))%>%
+  mutate(n_of_reg = sum(month(host_since)))
+
+ggplot(data = n_of_registrations) +
+   geom_point(aes(x = year(host_since), y = n_of_reg))+
+   facet_wrap( ~ month(host_since))+
+  ggtitle("Distribution of number number of registration in each month") +
+  xlab("Years") + ylab("number of registrations")
+```
+
+From the warning, it is clear that 46 values among 52725 values for the months are out of range. Since the number problematic values is small, we can safely ignore them. However, the reason for such deviation could be the fact that for these 46 entries values designated to months is out of range 1 to 12. Another reason could be that the dates are not available in dataframe.
+
+From the chart we can see that we may not have complete data for the registrations after July 2016 since the column for the year 2016 for the subsequent month appears blank.
+
+Overall, the maximum registrations are in the month of July almost in all years. Also, it seems that higher number of people register their properties from June to December on AirBnB.
+
+### Host Response to booking requests ###
+
+Now, let's analyse how hosts respond to the booking requests.
+
+
+To have meaningful insights the datatypes of host_response_time, host_response_rate and host_acceptance_rate must be changed to numeric form.
+
+```{r}
+response_col <- c("host_response_rate", "host_acceptance_rate")
+Air[response_col] <- sapply(Air[response_col], as.character)
+Air[response_col] <- sapply(Air[response_col], gsub, pattern ="[%]", replacement ="")
+Air[response_col] <- sapply(Air[response_col], as.numeric)
+#head(Air)
+
+```
+
+
+```{r}
+hostid_col <- c("host_is_superhost", "host_has_profile_pic", "host_identity_verified")
+Air[hostid_col] <- sapply(Air[hostid_col], as.character)
+#head(Air)
+```
+
+### Host response and acceptance ###
+
+Let's analyse the host response and acceptance rates.
+
+```{r}
+
+ggplot(data = Air) +
+   geom_point(aes(x = host_response_rate, y = host_acceptance_rate, col = host_response_time))+
+   facet_wrap( ~ host_is_superhost)+
+  ggtitle("Relation between Response rate and Acceptance Rate") +
+  xlab("Response Rate") + ylab("Acceptance Rate")
+
+```
+
+From the above chart it is clear that super hosts have much higher response rate and lesser response time. Hardly any super hosts takes a few days or more.  
+
+To drill down on such behavior, let's try to understand the relation between mean acceptance rate vs mean response rate for each response rate.
+
+
+
+```{r}
+resvsacc = Air %>%
+  select(host_response_time, host_response_rate, host_acceptance_rate, host_is_superhost) %>%
+  group_by(host_response_time, host_is_superhost) %>%
+  summarise(mean_response_rate = mean(host_response_rate, na.rm =TRUE),
+            mean_acceptance_rate = mean(host_acceptance_rate, na.rm =TRUE))
+
+ggplot(data = resvsacc)+
+  geom_point (aes(x = mean_response_rate, y = mean_acceptance_rate))+
+  geom_smooth (mapping = aes(x = mean_response_rate, y = mean_acceptance_rate), method = 'lm')+
+  facet_wrap(  ~ host_is_superhost)+
+  ggtitle("Relation between Response rate and Acceptance Rate") +
+  xlab("Response Rate") + ylab("Acceptance Rate")
+```
+From the graphs above it is clear that for superhosts, the correlation between the acceptance rate and response rate is quite predictable. It means people with high response rate are more like accept a request. However, such relation doesn't exist for other people.
+
+## Analysis of Accommodations ##
+
+### Exactness of location ###
+
+Now let's analyse the data for different types of accommodations on AirBnB. The first thing that we can analyse is how many properties have exact locations as mentioned filtered by neighborhoods.
+
+```{r}
+ggplot(data = Air) +
+   geom_bar(aes(x = is_location_exact, col = bedrooms))+
+   facet_wrap( ~ neighbourhood_cleansed)+
+  ggtitle("Location exactness in different parts of Paris") +
+  xlab("Location exactness") + ylab("no of houses")
+```
+
+In all areas, higher number of properties with exact locations are present. 
+
+### Size of the property and exactness of location ###
+
+Now, let's find out if there is any relation of the location exact with size of the property. Number of bedrooms is a descent indicator of the size of the location.
+
+```{r}
+ggplot(data = Air) +
+   geom_bar(aes(x = bedrooms, fill = is_location_exact), position = "fill")+
+   facet_wrap( ~ neighbourhood_cleansed)+
+ ggtitle("Relation between Location exactness and number of bedrooms in different parts of Paris") +
+  xlab("no of bedrooms") + ylab("")
+```
+Although one could say that more the number of bedrooms, more are the chances that location of that property is incorrect, however, it must be considered that there are very few houses having more than 2 bedrooms registered on AirBnB. So, one cannot reach such conclusions.
+
+### Size of the house and area of the property ###
+
+Now, let's investigate if there is any relation between number of bedrooms and the neighbourhood.
+
+```{r}
+ggplot(data = Air) +
+   geom_bar(aes(x = bedrooms, fill = neighbourhood_cleansed))+
+ ggtitle("Number of bedrooms in different parts of Paris") +
+  xlab("Number of bedrooms") + ylab("no of houses")
+
+```
+As expected most of the areas have 1 bedroom properties and it doesnt vary much according to areas.
+
+### Distribution of bedrooms, beds and other details ###
+
+Now let's find out the relation between bedrooms, property_type, room_type, accommodates, bathrooms, bedrooms, beds
+
+```{r}
+accom = Air %>%
+  select(bedrooms, property_type, room_type, beds) %>%
+  group_by(bedrooms, property_type, room_type, beds) %>%
+  summarise(mean_bedrooms = mean(bedrooms, na.rm =TRUE),
+            mean_beds = mean(beds, na.rm =TRUE), groups = NULL)
+
+ggplot(data = accom) +
+   geom_point(aes(x = mean_bedrooms, y = mean_beds, col = property_type))+
+   facet_wrap( ~ room_type)+
+  ggtitle("Relation between Bedrooms and Beds for different property types across different room types") +
+  xlab("Bedrooms") + ylab("Beds")
+```
+As expected on average only entire houses or apartments have more than one bedroom per property. However, the unexpected fact is even with bedroom on an avergae, some fo the apartments have 5 or even 10 beds in that one bedroom. 
+
+On the other hand, properties having multiple bedrooms and beds seems distributed.
+
+## Analysis of Prices##
+
+Now, Let's analyse the prices component of the data.
+
+### Checking pricing data ###
+
+Before moving further, let's analyse if there are any outliers in our data.
+
+
+```{r}
+boxplot(Air[Price_col])
+```
+It is clear from the box plot that the outliers are way out of the boxplots. So, let's eliminate them so that a reasonable relation between prices and diferent variables can be established. At the same time it is essential to find out how many NA values are present in this data.
+
+
+```{r}
+sum(is.na(Air$price))
+sum(is.na(Air$weekly_price))
+sum(is.na(Air$monthly_price))
+sum(is.na(Air$security_deposit))
+sum(is.na(Air$cleaning_fee))
+sum(is.na(Air$extra_people))
+```
+There are too many NA values four variables. So, we will focus only on the two variables primarily. However, within the two price seems to be the most important variable so we will proceed with the it and remove outliers.
+
+#### Finding outliers and removing them ####
+
+```{r}
+
+detect_outlier <- function(x) {
+
+	Quantile1 <- quantile(x, probs=.25)
+	Quantile3 <- quantile(x, probs=.75)
+	IQR = Quantile3 - Quantile1
+	x > Quantile3 + (IQR*1.5) | x < Quantile1 - (IQR*1.5)
+}
+remove_outlier <- function(dataframe,	columns=names(dataframe)) {
+
+	for (col in columns) {
+		dataframe <- dataframe[! detect_outlier(dataframe[[col]]), ]
+	}
+
+	print(dataframe)
+}
+
+Price <- remove_outlier(Air, c("price"))
+
+```
+
+```{r}
+boxplot(Price$price)
+```
+
+
+```{r}
+Co_Price <- Price [, (names(Price) %in% c("price", "accommodates", "bathrooms", "bedrooms", "beds",  "guests_included", "minimum_nights", "number_of_reviews"))]
+
+#head(Co_Price)
+```
+
+### Corelation between 7 pricing variables ###
+
+```{r}
+chart.Correlation(Co_Price, histogram = TRUE)
+```
+From the above chart it is clear that there is moderate or weak relation between price and number of people who can stay at a property and number of bedrooms. However, such relations are expected. 
+
+Unexpectedly, prices are hardly affected by guests included, minimum nights, number of reviews and number of bathrooms. In such case let's explore the effect of categorical variables on the prices. 
+
+### Relation between Room type and price ###
+
+```{r}
+propprice = Price %>%
+  select(property_type, room_type, price) %>%
+  group_by(property_type, room_type) %>%
+  summarise(mean_price = mean(price, na.rm =TRUE), groups = NULL)
+
+ggplot(data = propprice) +
+   geom_point(aes(x = mean_price, y = room_type))+
+   facet_wrap( ~ property_type)+
+  ggtitle("Relation between Price and Room type for different property types") +
+  xlab("Price") + ylab("Room type")
+```
+
+As expected in most cases price of a shared room is the least or equal to that of the private room. At the same time, the price of entire home or apartment is highest except in the case of dorm. To investigate whether this data is correct or incorrect lets run following query.
+
+#### Investigate the dicrimination in relation between Room type and price for Dorms ####
+
+Here, it is assumed that the dorms as traditionally defined is a structure with one or more bedrooms without any other major structure. It could be very similar to a hostel. So, a major factor governing the prices could be the number of beds. 
+
+
+```{r}
+Dorm_price = Price %>%
+          filter(property_type == 'Dorm') %>%
+          select(property_type, room_type, neighbourhood_cleansed, price, beds) %>%
+          group_by(neighbourhood_cleansed, room_type, beds)
+
+ggplot(data = Dorm_price) +
+   geom_point(aes(x = price, y = room_type))+
+   facet_wrap( ~ beds)+
+  ggtitle("Relation between Price and Room type for dorms") +
+  xlab("Price") + ylab("Room type")
+
+```
+Here it is very clear that although on an average prices for private room under "Dorms" is more than for entire home/apartment, maximum number of beds in the latter are 2 whereas in the former are 4. So, it is natural to expect such a variation.
+
+### Relations between Neighbourhood and prices ###
+
+Now, let's investigate the effect of neighbourhood on the prices.
+
+```{r}
+neigh_price = Price %>%
+  select(room_type, price, neighbourhood_cleansed) %>%
+  group_by(room_type, neighbourhood_cleansed) %>%
+  summarise(mean_price = mean(price, na.rm =TRUE), groups = NULL)
+
+ggplot(data = neigh_price) +
+   geom_point(aes(x = mean_price, y = room_type))+
+   facet_wrap( ~ neighbourhood_cleansed)+
+  ggtitle("Relation between Price and property type in different areas") +
+  xlab("Price") + ylab("property type")
+
+```
+Here, in all areas there is a rise in prices from shared room to private room to entire home. Now, we may attempt to summarise all our findings in one chart as follows.
+
+
+```{r}
+accprice = Price %>%
+  select(property_type, room_type, price, neighbourhood_cleansed) %>%
+  group_by(property_type, room_type, neighbourhood_cleansed) %>%
+  summarise(mean_price = mean(price, na.rm =TRUE), groups = NULL)
+
+ggplot(data = accprice) +
+   geom_point(aes(x = mean_price, y = neighbourhood_cleansed, col = property_type))+
+   facet_wrap( ~ room_type)+
+  ggtitle("Relation between Price and Area for different property types and room types") +
+  xlab("Price") + ylab("Area")
+
+```
+The average price for all property types in all areas is higher for entire apartments or houses. Then comes the private rooms and lastly the shared rooms.
+
+
+## Analysis of Reviews ##
+
+```{r}
+Reviews <- Air [, (names(Air) %in% c("review_scores_rating","review_scores_accuracy", "review_scores_cleanliness", "review_scores_checkin", "review_scores_communication", "review_scores_location", "price"))]
+
+head(Reviews)
+```
+
+
+```{r}
+chart.Correlation(Reviews, histogram = TRUE)
+```
+
+Most significant results can be seen in the first column and row for reviews. It is clear that accuracy of information or cleanliness has moderately strong direct relation with overall ratings, whereas checkin experience and communication has moderate direct relations. Lastly, location of the property and price have weak direct relation with the ratings of that property.
+
+### Relationship between location and ratings ###
+
+Among all these relations we can investigate the relation between location and ratings separately. If the relation is weak or non-existent, we may find random pattern whereas if the above findings are not true then we may find a specific pattern.
+
+```{r}
+ggplot(data = Air) +
+   geom_point(aes(x = review_scores_rating, y = room_type))+
+   facet_wrap( ~ neighbourhood_cleansed)+
+  ggtitle("Relation between Ratings and Room type for different locations") +
+  xlab("Ratings") + ylab("Room type")
+```
+As expected there is no specific relation between location and ratings across the three room types. However, one interesting observation is shared rooms usually have best ratings among the three room types. However, such discrepency can be attributed to the fact that we have way more data for entire home or apartment.
+
+### Dependency of reviews on other variables ###
+
+Let's investigate more insights for reviews. However, reviews depend a lot on prices, location, services and many more variables. 
+
+```{r}
+Reviews_global = Price %>%
+  select(review_scores_rating, host_response_rate, host_acceptance_rate, host_total_listings_count, accommodates, price, extra_people)
+  
+```
+
+```{r}
+chart.Correlation(Reviews_global, histogram = TRUE)
+```
+So, there is hardly any strong corelation between reviews posted for properties and other numerical categories such as host_response_rate, host_acceptance_rate, host_total_listings_count, accommodates, price and charge for extra people.
+ 
+Of course, there is a moderate correlation between price and how many people can a house or apartment accommodate. However, it is not unexpected at all. Also, we have explored the relation earlier.
+ 
+Now, let's try to explore if there is any relation between categorical variables and ratings of the properties all across the world.
+
+### Ratings and whether the identity of the host ###
+
+Within that let's analyse relation between ratings against the fact whether the identity of the host is verified or not. 
+
+```{r}
+Reviews_prop_type = Air%>%
+  select(review_scores_rating, property_type, host_is_superhost, host_identity_verified)%>%
+  group_by(review_scores_rating, property_type, host_is_superhost, host_identity_verified)%>%
+  summarise(mean_ratings = mean(review_scores_rating, na.rm = TRUE), group = NULL)
+
+ggplot(data = Reviews_prop_type) +
+   geom_point(aes(x = review_scores_rating, y = host_identity_verified, col = host_is_superhost))+
+   facet_wrap(  ~ property_type )+
+  ggtitle("Relation between Reviews and whether host identity is verified across property types") +
+  xlab("Ratings") + ylab("Property types")
+```
+
+There are no clear insights among the given variables.
+
+Let's see if the ratings are dependent on for how long a host has registered on AirBnB.
+
+
+```{r}
+days_rating = Air%>%
+  select(host_since, review_scores_rating, neighbourhood_cleansed)%>%
+  mutate(numberofdays = today() - host_since)%>%
+  group_by(neighbourhood_cleansed)%>%
+  summarise(mean_rat = mean(review_scores_rating, na.rm=TRUE),
+            mean_nod = mean(numberofdays, na.rm=TRUE))
+
+
+ggplot(data = days_rating)+
+  geom_point(aes(x = mean_rat, y = mean_nod, col = neighbourhood_cleansed))+
+  #facet_wrap( ~ neighbourhood_cleansed)+
+  geom_smooth(mapping = aes(x =  mean_rat,y = mean_nod),method='lm')+ 
+  ggtitle("Relation between Reviews and number of days for which a host is registered") +
+  xlab("Ratings") + ylab("number of days for which a property is registered")
+  
+
+  
+```
+
+We could say in general ratings are also dependent on the number of days for which a particular person is hosting guests on AirBnB.
+
+#### Data for shiny app ####
+
+Finally we create a data set required for the shiny app.
+
+```{r}
+Webapp = Air%>%
+  select(host_response_rate, host_acceptance_rate, host_response_time, host_is_superhost)
+```
+
+
+```{r}
+write.table(Webapp,file='D:/R_Bootcamp/R_DSTI_Project/Niraj_DSTI/Webapp.csv')
+```
